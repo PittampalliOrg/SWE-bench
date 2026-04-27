@@ -134,7 +134,7 @@ def run_instance(
                 image_build_link.symlink_to(
                     build_dir.absolute(), target_is_directory=True
                 )
-            except:
+            except Exception:
                 # some error, idk why
                 pass
 
@@ -574,6 +574,7 @@ def main(
         namespace,
         instance_image_tag,
         env_image_tag,
+        report_dir,
     )
 
 
