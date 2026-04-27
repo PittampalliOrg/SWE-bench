@@ -79,6 +79,9 @@ docs = [
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.package-data]
+"swebench.harness.constants" = ["fixtures/*.Cargo.lock"]
+
 [tool.setuptools.dynamic]
 version = {attr = "swebench.__version__"}
 
