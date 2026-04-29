@@ -277,7 +277,7 @@ def _strip_first_from(dockerfile: str) -> str:
 def _adapt_base_dockerfile_body(dockerfile_body: str) -> str:
     return dockerfile_body.replace(
         "RUN adduser --disabled-password --gecos 'dog' nonroot",
-        "RUN if ! id nonroot >/dev/null 2>&1; then useradd -m -s /bin/bash nonroot; fi",
+        "RUN true  # OpenShell provides the sandbox runtime user.",
     )
 
 
