@@ -56,20 +56,26 @@ def test_generates_harness_specs_for_representative_python_repos():
         assert spec["scriptHashes"]["setupEnvScript"]
         assert spec["dockerfileHashes"]["openshellDockerfile"]
         assert "WORKDIR /testbed" in spec["openshellDockerfile"]
-        assert "conda activate testbed" in spec["openshellDockerfile"]
-        assert ". /opt/miniconda3/etc/profile.d/conda.sh" in spec[
+        assert "conda activate testbed" not in spec["openshellDockerfile"]
+        assert ". /opt/miniconda3/etc/profile.d/conda.sh" not in spec[
             "openshellDockerfile"
         ]
         assert "export CONDA_DEFAULT_ENV=testbed" in spec["openshellDockerfile"]
-        assert "export CONDA_PREFIX=/opt/miniconda3/envs/testbed" in spec[
+        assert "cp -a /opt/miniconda3/envs/testbed /sandbox/.venv" in spec[
+            "openshellDockerfile"
+        ]
+        assert "export CONDA_PREFIX=/sandbox/.venv" in spec[
+            "openshellDockerfile"
+        ]
+        assert "export VIRTUAL_ENV=/sandbox/.venv" in spec["openshellDockerfile"]
+        assert "sed -i '1s|/opt/miniconda3/envs/testbed|/sandbox/.venv|g'" in spec[
             "openshellDockerfile"
         ]
         assert "source /opt/miniconda3/etc/profile.d/conda.sh" not in spec[
             "openshellDockerfile"
         ]
         assert (
-            "ENV PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:"
-            "/opt/miniconda3/bin:/sandbox/.venv/bin:/usr/local/sbin:/usr/local/bin:"
+            "ENV PATH=/sandbox/.venv/bin:/usr/local/sbin:/usr/local/bin:"
             "/usr/sbin:/usr/bin:/sbin:/bin"
         ) in spec["openshellDockerfile"]
         assert 'sandbox_home="$(getent passwd sandbox | cut -d: -f6)"' in spec[
