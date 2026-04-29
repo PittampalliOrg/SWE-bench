@@ -202,7 +202,9 @@ def make_openshell_dockerfile(
     source of truth while keeping the final runtime OpenShell-compatible.
     """
 
-    upstream_base_body = _strip_first_from(test_spec.base_dockerfile).strip()
+    upstream_base_body = _adapt_base_dockerfile_body(
+        _strip_first_from(test_spec.base_dockerfile)
+    ).strip()
     return "\n".join(
         [
             "# syntax=docker/dockerfile:1.7",
@@ -270,6 +272,13 @@ def _strip_first_from(dockerfile: str) -> str:
         if line.lstrip().upper().startswith("FROM "):
             return "\n".join(lines[:index] + lines[index + 1 :])
     return dockerfile
+
+
+def _adapt_base_dockerfile_body(dockerfile_body: str) -> str:
+    return dockerfile_body.replace(
+        "RUN adduser --disabled-password --gecos 'dog' nonroot",
+        "RUN if ! id nonroot >/dev/null 2>&1; then useradd -m -s /bin/bash nonroot; fi",
+    )
 
 
 def _required_string(payload: Mapping[str, Any], *keys: str) -> str:
