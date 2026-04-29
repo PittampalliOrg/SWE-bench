@@ -74,7 +74,9 @@ def test_build_agent_prompt_contains_sandbox_contract():
         max_turns=5,
     )
 
-    assert "Work only in /sandbox/repo" in prompt
+    assert "Work only in /testbed" in prompt
+    assert "conda testbed environment" in prompt
+    assert "Do not reinstall project dependencies" in prompt
     assert "Do not commit" in prompt
     assert "Leave final changes in the working tree" in prompt
     assert "sympy__sympy-20590" in prompt
