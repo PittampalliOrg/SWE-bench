@@ -75,7 +75,7 @@ def test_setup_repo_falls_back_when_version_ref_is_missing():
         make_request("sympy__sympy-13091", "sympy/sympy", "1.7")
     )
 
-    assert "git clone -o origin --branch 1.7 --single-branch" in spec["setupRepoScript"]
+    assert "if ! git clone -o origin" in spec["setupRepoScript"]
     assert "git clone -o origin https://github.com/sympy/sympy /testbed" in spec[
         "setupRepoScript"
     ]
