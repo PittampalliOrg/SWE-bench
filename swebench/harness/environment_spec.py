@@ -230,7 +230,14 @@ def make_openshell_dockerfile(
             "",
             "ENV CONDA_DEFAULT_ENV=testbed",
             "ENV CONDA_PREFIX=/opt/miniconda3/envs/testbed",
-            "ENV PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/bin:${PATH}",
+            "ENV CONDA_EXE=/opt/miniconda3/bin/conda",
+            "ENV CONDA_PYTHON_EXE=/opt/miniconda3/bin/python",
+            (
+                "ENV PATH=/opt/miniconda3/envs/testbed/bin:"
+                "/opt/miniconda3/condabin:/opt/miniconda3/bin:"
+                "/sandbox/.venv/bin:/usr/local/sbin:/usr/local/bin:"
+                "/usr/sbin:/usr/bin:/sbin:/bin"
+            ),
             "RUN printf '%s\\n' \\",
             "  'source /opt/miniconda3/etc/profile.d/conda.sh' \\",
             "  'conda activate testbed' > /root/.bashrc \\",
@@ -243,6 +250,8 @@ def make_openshell_dockerfile(
             "    fi",
             "",
             "WORKDIR /testbed",
+            "ENV HOME=/home/sandbox",
+            "ENV PWD=/testbed",
             "USER sandbox",
             "WORKDIR /testbed",
             "",
