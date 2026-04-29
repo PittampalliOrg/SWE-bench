@@ -57,6 +57,12 @@ def test_generates_harness_specs_for_representative_python_repos():
         assert spec["dockerfileHashes"]["openshellDockerfile"]
         assert "WORKDIR /testbed" in spec["openshellDockerfile"]
         assert "conda activate testbed" in spec["openshellDockerfile"]
+        assert ". /opt/miniconda3/etc/profile.d/conda.sh" in spec[
+            "openshellDockerfile"
+        ]
+        assert "source /opt/miniconda3/etc/profile.d/conda.sh" not in spec[
+            "openshellDockerfile"
+        ]
         assert (
             "ENV PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:"
             "/opt/miniconda3/bin:/sandbox/.venv/bin:/usr/local/sbin:/usr/local/bin:"
