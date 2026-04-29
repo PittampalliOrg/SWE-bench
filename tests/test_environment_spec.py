@@ -70,6 +70,17 @@ def test_xarray_uses_swebench_pinned_dependencies_not_latest_packages():
     assert "pytest==7.4.0" in spec["setupEnvScript"]
 
 
+def test_setup_repo_falls_back_when_version_ref_is_missing():
+    spec = generate_swebench_environment_spec(
+        make_request("sympy__sympy-13091", "sympy/sympy", "1.7")
+    )
+
+    assert "git clone -o origin --branch 1.7 --single-branch" in spec["setupRepoScript"]
+    assert "git clone -o origin https://github.com/sympy/sympy /testbed" in spec[
+        "setupRepoScript"
+    ]
+
+
 def test_unsupported_repo_version_is_not_a_harness_spec():
     assert is_supported_harness_spec("unknown/repo", "1.0") is False
     assert is_supported_harness_spec("sympy/sympy", None) is False

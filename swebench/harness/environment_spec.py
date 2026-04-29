@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -138,9 +139,10 @@ def generate_swebench_environment_spec(
         arch=arch,
     )
     specs = MAP_REPO_VERSION_TO_SPECS[request.repo][request.version]
+    setup_repo_script = _adapt_setup_repo_script(test_spec.install_repo_script)
     script_hashes = {
         "setupEnvScript": _sha256(test_spec.setup_env_script),
-        "setupRepoScript": _sha256(test_spec.install_repo_script),
+        "setupRepoScript": _sha256(setup_repo_script),
         "evalScript": _sha256(test_spec.eval_script),
     }
     dockerfile_hashes = {
@@ -181,7 +183,7 @@ def generate_swebench_environment_spec(
         "instanceDockerfile": test_spec.instance_dockerfile,
         "openshellDockerfile": openshell_dockerfile,
         "setupEnvScript": test_spec.setup_env_script,
-        "setupRepoScript": test_spec.install_repo_script,
+        "setupRepoScript": setup_repo_script,
         "evalScript": test_spec.eval_script,
         "FAIL_TO_PASS": request.fail_to_pass,
         "PASS_TO_PASS": request.pass_to_pass,
@@ -279,6 +281,28 @@ def _adapt_base_dockerfile_body(dockerfile_body: str) -> str:
         "RUN adduser --disabled-password --gecos 'dog' nonroot",
         "RUN true  # OpenShell provides the sandbox runtime user.",
     )
+
+
+def _adapt_setup_repo_script(script: str) -> str:
+    clone_line = re.compile(
+        r"^git clone -o origin --branch (?P<branch>\S+) --single-branch "
+        r"(?P<url>\S+) (?P<dest>\S+)$"
+    )
+    lines: list[str] = []
+    for line in script.splitlines():
+        match = clone_line.match(line)
+        if not match:
+            lines.append(line)
+            continue
+        lines.extend(
+            [
+                f"if ! {line}; then",
+                f"  rm -rf {match.group('dest')}",
+                f"  git clone -o origin {match.group('url')} {match.group('dest')}",
+                "fi",
+            ]
+        )
+    return "\n".join(lines) + ("\n" if script.endswith("\n") else "")
 
 
 def _required_string(payload: Mapping[str, Any], *keys: str) -> str:
