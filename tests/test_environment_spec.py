@@ -60,6 +60,10 @@ def test_generates_harness_specs_for_representative_python_repos():
         assert ". /opt/miniconda3/etc/profile.d/conda.sh" in spec[
             "openshellDockerfile"
         ]
+        assert "export CONDA_DEFAULT_ENV=testbed" in spec["openshellDockerfile"]
+        assert "export CONDA_PREFIX=/opt/miniconda3/envs/testbed" in spec[
+            "openshellDockerfile"
+        ]
         assert "source /opt/miniconda3/etc/profile.d/conda.sh" not in spec[
             "openshellDockerfile"
         ]
