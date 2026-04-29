@@ -285,8 +285,8 @@ def _adapt_base_dockerfile_body(dockerfile_body: str) -> str:
 
 def _adapt_setup_repo_script(script: str) -> str:
     clone_line = re.compile(
-        r"^git clone -o origin (?:--branch (?P<branch>\S+) )?--single-branch "
-        r"(?P<url>\S+) (?P<dest>\S+)$"
+        r"^git clone -o origin\s+(?:--branch (?P<branch>\S+)\s+)?"
+        r"--single-branch\s+(?P<url>\S+)\s+(?P<dest>\S+)$"
     )
     lines: list[str] = []
     for line in script.splitlines():
