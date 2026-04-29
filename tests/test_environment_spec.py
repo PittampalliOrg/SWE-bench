@@ -62,6 +62,10 @@ def test_generates_harness_specs_for_representative_python_repos():
             "/opt/miniconda3/bin:/sandbox/.venv/bin:/usr/local/sbin:/usr/local/bin:"
             "/usr/sbin:/usr/bin:/sbin:/bin"
         ) in spec["openshellDockerfile"]
+        assert 'sandbox_home="$(getent passwd sandbox | cut -d: -f6)"' in spec[
+            "openshellDockerfile"
+        ]
+        assert "ENV HOME=/sandbox" in spec["openshellDockerfile"]
         assert "ENV PWD=/testbed" in spec["openshellDockerfile"]
         assert "USER sandbox" in spec["openshellDockerfile"]
         assert "${PATH}" not in spec["openshellDockerfile"]
