@@ -19,7 +19,10 @@ from swebench.harness.test_spec.test_spec import TestSpec, make_test_spec
 
 BUILD_STRATEGY = "swebench-harness"
 CONDA_ENV_NAME = "testbed"
-DEFAULT_OPENSHELL_BASE_IMAGE = "ghcr.io/pittampalliorg/openshell-sandbox:latest"
+DEFAULT_OPENSHELL_BASE_IMAGE = (
+    "ghcr.io/pittampalliorg/openshell-sandbox"
+    "@sha256:dae398c014aeb4553844c79922d5c76c99dde04d0a6a7a9db5dd5307584a9a3b"
+)
 
 
 @dataclass(frozen=True)
