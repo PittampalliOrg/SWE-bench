@@ -288,7 +288,7 @@ def load_suite_instances(
 def build_agent_prompt(
     instance: Mapping[str, Any],
     *,
-    workspace: str = "/sandbox/repo",
+    workspace: str = "/testbed",
     max_turns: int | None = None,
 ) -> str:
     hints = (instance.get("hints_text") or "").strip()
@@ -298,8 +298,12 @@ def build_agent_prompt(
         "You are solving a SWE-bench task inside an OpenShell sandbox.\n\n"
         "Contract:\n"
         f"- Work only in {workspace}.\n"
+        "- The repository is already checked out and prepared there.\n"
+        "- Dependencies are installed from the SWE-bench harness spec in the conda testbed environment.\n"
+        "- Do not reinstall project dependencies unless the issue explicitly requires it.\n"
         "- Do not commit.\n"
         "- Make minimal source changes that address the issue.\n"
+        "- Do not modify setup, test, or benchmark metadata files unless required by the issue.\n"
         "- Leave final changes in the working tree.\n"
         "- The workflow will extract the diff after you finish.\n\n"
         f"Repository: {instance.get('repo')}\n"
