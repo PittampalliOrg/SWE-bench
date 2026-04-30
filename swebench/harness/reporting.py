@@ -9,6 +9,11 @@ from swebench.harness.constants import (
     KEY_PREDICTION,
     RUN_EVALUATION_LOG_DIR,
     LOG_REPORT,
+    LOG_TEST_OUTPUT,
+)
+from swebench.harness.dapr_native import (
+    parse_pytest_summary_counts,
+    summarize_raw_harness_notes,
 )
 from swebench.harness.docker_utils import list_images
 from swebench.harness.test_spec.test_spec import make_test_spec
@@ -47,6 +52,9 @@ def make_run_report(
     incomplete_ids = set()
     # get instances with empty patches
     empty_patch_ids = set()
+    instance_artifacts = {}
+    raw_test_counters = {}
+    raw_harness_notes = {}
 
     # iterate through dataset and check if the instance has been run
     for instance in full_dataset:
@@ -66,6 +74,11 @@ def make_run_report(
             / prediction[KEY_INSTANCE_ID]
             / LOG_REPORT
         )
+        test_output_file = report_file.with_name(LOG_TEST_OUTPUT)
+        instance_artifacts[instance_id] = {
+            "report_path": str(report_file),
+            "test_output_path": str(test_output_file),
+        }
         if report_file.exists():
             completed_ids.add(instance_id)
             try:
@@ -75,6 +88,18 @@ def make_run_report(
                     continue
 
                 report = json.loads(content)
+                instance_report = report.get(instance_id, {})
+                test_output = (
+                    test_output_file.read_text(errors="replace")
+                    if test_output_file.exists()
+                    else None
+                )
+                counters = parse_pytest_summary_counts(test_output)
+                if counters:
+                    raw_test_counters[instance_id] = counters
+                notes = summarize_raw_harness_notes(instance_report, test_output)
+                if notes:
+                    raw_harness_notes[instance_id] = notes
                 if report[instance_id]["resolved"]:
                     # Record if the instance was resolved
                     resolved_ids.add(instance_id)
@@ -140,6 +165,9 @@ def make_run_report(
         "resolved_ids": list(sorted(resolved_ids)),
         "unresolved_ids": list(sorted(unresolved_ids)),
         "error_ids": list(sorted(error_ids)),
+        "instance_artifacts": instance_artifacts,
+        "raw_test_counters": raw_test_counters,
+        "raw_harness_notes": raw_harness_notes,
         "schema_version": 2,
     }
     if not client:

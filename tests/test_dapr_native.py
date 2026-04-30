@@ -1,21 +1,32 @@
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from swebench.harness.constants import KEY_INSTANCE_ID, KEY_MODEL, KEY_PREDICTION
 from swebench.harness.dapr_native import (
+    BenchmarkRunProvenance,
     InstanceResult,
     InstanceStatus,
+    PredictionValidationError,
     StartRunRequest,
+    build_golden_canary_run_manifest,
     build_agent_prompt,
+    build_harness_result_summary,
     build_evaluator_command,
+    merge_run_provenance,
     extract_git_diff,
     filter_instances,
     is_valid_status_transition,
     parse_report_statuses,
+    parse_pytest_summary_counts,
     patch_sha256,
     prediction_record,
+    prepare_evaluator_launch,
+    require_valid_predictions_jsonl,
+    summarize_raw_harness_notes,
+    validate_predictions_jsonl,
     suite_dataset,
     validate_status_transition,
     write_predictions_jsonl,
@@ -126,6 +137,89 @@ def test_prediction_jsonl_and_patch_metadata(tmp_path):
     assert result.patch_bytes == len(patch.encode("utf-8"))
 
 
+def test_prediction_validation_accepts_empty_patch_and_valid_diff(tmp_path):
+    valid_patch = "\n".join(
+        [
+            "diff --git a/a.py b/a.py",
+            "--- a/a.py",
+            "+++ b/a.py",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new",
+            "",
+        ]
+    )
+    path = write_predictions_jsonl(
+        [
+            prediction_record("repo__repo-1", valid_patch, "agent-v1"),
+            prediction_record("repo__repo-2", "", "agent-v1"),
+            prediction_record("repo__repo-3", None, "agent-v1"),
+        ],
+        tmp_path / "predictions.jsonl",
+    )
+
+    result = validate_predictions_jsonl(
+        path,
+        ["repo__repo-1", "repo__repo-2", "repo__repo-3"],
+    )
+
+    assert result.valid
+    assert result.empty_patch_ids == ["repo__repo-2", "repo__repo-3"]
+    assert result.predictions_sha256
+
+
+def test_prediction_validation_rejects_bad_jsonl_shapes(tmp_path):
+    path = tmp_path / "predictions.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        KEY_INSTANCE_ID: "repo__repo-1",
+                        KEY_MODEL: "agent",
+                        KEY_PREDICTION: "```diff\n--- a/a.py\n+++ b/a.py\n```",
+                    }
+                ),
+                json.dumps(
+                    {
+                        KEY_INSTANCE_ID: "repo__repo-1",
+                        KEY_MODEL: "agent",
+                        KEY_PREDICTION: "",
+                    }
+                ),
+                json.dumps(
+                    {
+                        KEY_INSTANCE_ID: "repo__repo-2",
+                        KEY_PREDICTION: "not a diff",
+                    }
+                ),
+                "{bad json",
+            ]
+        )
+        + "\n"
+    )
+
+    result = validate_predictions_jsonl(
+        path,
+        ["repo__repo-1", "repo__repo-2", "repo__repo-3"],
+    )
+
+    assert not result.valid
+    codes = {issue.code.value for issue in result.issues}
+    assert "markdown_wrapped_diff" in codes
+    assert "duplicate_instance" in codes
+    assert "missing_field" in codes
+    assert "missing_instance" in codes
+    assert "malformed_json" in codes
+    assert result.affected_instance_ids == [
+        "repo__repo-1",
+        "repo__repo-2",
+        "repo__repo-3",
+    ]
+    with pytest.raises(PredictionValidationError):
+        require_valid_predictions_jsonl(path, ["repo__repo-1"])
+
+
 def test_parse_report_statuses_for_instance_and_aggregate_reports():
     instance_report = {
         "repo__repo-1": {"resolved": True},
@@ -161,6 +255,91 @@ def test_status_transition_validation():
         validate_status_transition("resolved", "evaluating")
 
 
+def test_run_provenance_merge_preserves_existing_fields():
+    created = "2026-04-29T00:00:00Z"
+    existing = BenchmarkRunProvenance(
+        run_id="run-123",
+        evaluator_image="old-image",
+        predictions_sha256="abc",
+        environment_images={"base": {"image": "base:v1", "digest": "sha256:old"}},
+        raw_notes={"instances": {"a": {"summary": "kept"}}},
+        created_at=created,
+    )
+
+    merged = merge_run_provenance(
+        existing,
+        {
+            "runId": "run-123",
+            "evaluatorJobName": "job-123",
+            "environmentImages": {"base": {"digest": "sha256:new"}, "env": "env:v1"},
+            "rawNotes": {"instances": {"b": {"summary": "added"}}},
+        },
+    ).to_dict()
+
+    assert merged["createdAt"] == created
+    assert merged["evaluatorImage"] == "old-image"
+    assert merged["evaluatorJobName"] == "job-123"
+    assert merged["predictionsSha256"] == "abc"
+    assert merged["environmentImages"]["base"] == {
+        "image": "base:v1",
+        "digest": "sha256:new",
+    }
+    assert merged["environmentImages"]["env"] == "env:v1"
+    assert merged["rawNotes"]["instances"]["a"]["summary"] == "kept"
+    assert merged["rawNotes"]["instances"]["b"]["summary"] == "added"
+
+
+def test_raw_harness_notes_keep_official_result_authoritative(tmp_path):
+    report = {
+        "repo__repo-1": {
+            "resolved": True,
+            "tests_status": {
+                "FAIL_TO_PASS": {
+                    "success": ["tests/test_issue.py::test_fixed"],
+                    "failure": [],
+                },
+                "PASS_TO_PASS": {
+                    "success": ["tests/test_existing.py::test_still_passes"],
+                    "failure": [],
+                },
+            },
+        }
+    }
+    test_output = "\n".join(
+        [
+            "FAILED tests/test_issue.py::test_fixed - old failure",
+            "ERROR tests/test_ungraded.py::test_extra - RuntimeError",
+            "===== 1 failed, 1 passed, 1 error in 1.23s =====",
+        ]
+    )
+    test_output_path = tmp_path / "test_output.txt"
+    test_output_path.write_text(test_output)
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(report))
+
+    notes = summarize_raw_harness_notes(report["repo__repo-1"], test_output)
+    summary = build_harness_result_summary(
+        report_path,
+        report_path=report_path,
+        test_output_path=test_output_path,
+    )
+
+    assert parse_pytest_summary_counts(test_output) == {
+        "failed": 1,
+        "passed": 1,
+        "errors": 1,
+    }
+    assert notes["ungradedPytestEvents"] == [
+        {"status": "error", "nodeid": "tests/test_ungraded.py::test_extra"}
+    ]
+    instance_summary = summary["instances"]["repo__repo-1"]
+    assert instance_summary["officialResult"] == "resolved"
+    assert instance_summary["resolved"] is True
+    assert instance_summary["rawHarnessNotes"]["summary"].startswith(
+        "Raw pytest output contains 1"
+    )
+
+
 def test_build_evaluator_command_uses_official_harness_entrypoint():
     command = build_evaluator_command(
         predictions_path="/artifacts/predictions.jsonl",
@@ -176,6 +355,80 @@ def test_build_evaluator_command_uses_official_harness_entrypoint():
     assert "SWE-bench/SWE-bench_Verified" in command
     assert command[command.index("--instance_ids") + 1 :] == ["django__django-11099"]
     assert command[command.index("--report_dir") + 1] == "/artifacts"
+
+
+def test_prepare_evaluator_launch_validates_predictions_and_records_provenance(tmp_path):
+    patch = "\n".join(
+        [
+            "diff --git a/a.py b/a.py",
+            "--- a/a.py",
+            "+++ b/a.py",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new",
+            "",
+        ]
+    )
+    predictions_path = write_predictions_jsonl(
+        [prediction_record("repo__repo-1", patch, "agent-v1")],
+        tmp_path / "predictions.jsonl",
+    )
+
+    launch = prepare_evaluator_launch(
+        predictions_path=predictions_path,
+        run_id="run-123",
+        suite="verified",
+        instance_ids=["repo__repo-1"],
+        timeout_seconds=120,
+        max_workers=2,
+        resource_class="large",
+        evaluator_image="swebench-evaluator:v1",
+    )
+
+    assert launch["validation"]["valid"] is True
+    assert launch["provenance"]["evaluatorImage"] == "swebench-evaluator:v1"
+    assert launch["provenance"]["resourceClass"] == "large"
+    assert launch["provenance"]["maxWorkers"] == 2
+    assert launch["provenance"]["timeoutSeconds"] == 120
+    assert launch["provenance"]["predictionsSha256"] == patch_sha256(
+        predictions_path.read_text()
+    )
+    assert launch["command"][:3] == ["python", "-m", "swebench.harness.run_evaluation"]
+
+
+def test_golden_canary_manifest_writes_machine_readable_artifacts(tmp_path):
+    instances = [
+        {
+            KEY_INSTANCE_ID: "django__django-11099",
+            "patch": "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-a\n+b\n",
+        },
+        {KEY_INSTANCE_ID: "sympy__sympy-20590", "patch": "unused"},
+    ]
+
+    manifest = build_golden_canary_run_manifest(
+        suite="verified",
+        agent="agent-v1",
+        project_id="project-1",
+        user_id="user-1",
+        artifact_dir=tmp_path,
+        run_id="run-123",
+        instances=instances,
+    )
+
+    assert manifest["runId"] == "run-123"
+    assert manifest["coordinatorExecutionId"] == "swebench-golden-canary-run-123"
+    assert manifest["selectedInstanceIds"] == [
+        "django__django-11099",
+        "sympy__sympy-20590",
+    ]
+    assert Path(manifest["artifactPaths"]["predictions"]).exists()
+    assert Path(manifest["artifactPaths"]["provenance"]).exists()
+    rows = [
+        json.loads(line)
+        for line in Path(manifest["artifactPaths"]["predictions"]).read_text().splitlines()
+    ]
+    assert rows[0][KEY_PREDICTION].startswith("diff --git")
+    assert rows[1][KEY_PREDICTION] == ""
 
 
 def test_make_run_report_honors_report_dir(tmp_path):

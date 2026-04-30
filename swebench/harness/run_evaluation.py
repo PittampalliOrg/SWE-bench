@@ -45,6 +45,7 @@ from swebench.harness.docker_build import (
     close_logger,
     setup_logger,
 )
+from swebench.harness.dapr_native import parse_pytest_summary_counts
 from swebench.harness.grading import get_eval_report
 from swebench.harness.reporting import make_run_report
 from swebench.harness.modal_eval import (
@@ -114,12 +115,31 @@ def run_instance(
         return {
             "completed": True,
             "resolved": report[instance_id]["resolved"],
+            "report_path": str(report_path),
+            "stdout_path": str(log_file),
+            "stderr_path": None,
+            "test_output_path": str(test_output_path),
+            "raw_test_counters": parse_pytest_summary_counts(
+                test_output_path.read_text(errors="replace")
+            ),
         }
     if report_path.exists():
         report = json.loads(report_path.read_text())
+        test_output_path = log_dir / LOG_TEST_OUTPUT
         return {
             "completed": True,
             "resolved": report[instance_id]["resolved"],
+            "report_path": str(report_path),
+            "stdout_path": str(log_file),
+            "stderr_path": None,
+            "test_output_path": str(test_output_path)
+            if test_output_path.exists()
+            else None,
+            "raw_test_counters": parse_pytest_summary_counts(
+                test_output_path.read_text(errors="replace")
+            )
+            if test_output_path.exists()
+            else {},
         }
 
     if not test_spec.is_remote_image:
@@ -267,9 +287,21 @@ def run_instance(
         if rm_image:
             remove_image(client, test_spec.instance_image_key, logger)
         close_logger(logger)
+        test_output_path = log_dir / LOG_TEST_OUTPUT
         return {
             "completed": eval_completed,
             "resolved": report.get(instance_id, {}).get("resolved", False),
+            "report_path": str(report_path),
+            "stdout_path": str(log_file),
+            "stderr_path": None,
+            "test_output_path": str(test_output_path)
+            if test_output_path.exists()
+            else None,
+            "raw_test_counters": parse_pytest_summary_counts(
+                test_output_path.read_text(errors="replace")
+            )
+            if test_output_path.exists()
+            else {},
         }
 
 

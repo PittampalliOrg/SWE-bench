@@ -54,9 +54,20 @@ workflow-builder integration:
 - `extract_git_diff` extracts a binary patch from a sandbox repo.
 - `InstanceResult`, `prediction_record`, and `write_predictions_jsonl` create
   official predictions JSONL.
+- `validate_predictions_jsonl` checks the predictions artifact before launching
+  an evaluator job. It requires one row for each selected instance, validates
+  required SWE-bench fields, accepts empty patches as unresolved candidates, and
+  rejects markdown/prose-wrapped or malformed non-empty diffs.
 - `parse_report_statuses` converts harness reports into instance statuses.
+- `build_harness_result_summary` preserves the official resolved/unresolved
+  result while adding artifact paths, raw pytest counters, and ungraded raw
+  harness notes when available.
+- `BenchmarkRunProvenance` and `merge_run_provenance` provide the shape and
+  merge behavior expected by the benchmark run provenance table.
 - `validate_status_transition` enforces the supported lifecycle transitions.
 - `build_evaluator_command` builds the evaluator job command.
+- `prepare_evaluator_launch` combines prediction validation, evaluator command
+  construction, and launch provenance into one pre-flight payload.
 
 The prompt contract is intentionally narrow:
 
@@ -68,6 +79,26 @@ The prompt contract is intentionally narrow:
 
 Empty patches should still be written to predictions JSONL. The harness records
 them as unresolved through the aggregate report.
+
+## Golden Canary Artifacts
+
+`scripts/create_golden_canary_run.py` creates a machine-readable manifest for an
+admin-triggered canary run:
+
+```bash
+python scripts/create_golden_canary_run.py \
+  --agent coding-assistant \
+  --project-id project_123 \
+  --user-id user_123 \
+  --suite verified
+```
+
+The script writes a predictions JSONL, provenance JSON, and manifest JSON under
+`artifacts/golden-canaries/<run_id>/`, then prints the manifest as a single JSON
+object. The default canary includes a gold-patch smoke instance and an
+empty-patch unresolved-expected instance. Pass `--environment-instance-id` to add
+a third environment/build validation case when a validated evaluator image is
+available.
 
 ## Environment Strategy
 
