@@ -55,6 +55,7 @@ def test_generates_harness_specs_for_representative_python_repos():
         assert spec["envSpecHash"]
         assert spec["scriptHashes"]["setupEnvScript"]
         assert spec["dockerfileHashes"]["openshellDockerfile"]
+        assert "conda config --set solver libmamba" in spec["openshellDockerfile"]
         assert "WORKDIR /testbed" in spec["openshellDockerfile"]
         assert "conda activate testbed" not in spec["openshellDockerfile"]
         assert ". /opt/miniconda3/etc/profile.d/conda.sh" not in spec[

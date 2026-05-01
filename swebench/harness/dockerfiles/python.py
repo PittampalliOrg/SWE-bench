@@ -28,6 +28,7 @@ ENV PATH=/opt/miniconda3/bin:$PATH
 # Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)
 RUN conda init --all
 RUN conda config --append channels conda-forge
+RUN conda config --set solver libmamba
 
 RUN adduser --disabled-password --gecos 'dog' nonroot
 """
