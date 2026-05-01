@@ -98,6 +98,33 @@ def test_xarray_uses_swebench_pinned_dependencies_not_latest_packages():
     assert "pytest==7.4.0" in spec["setupEnvScript"]
 
 
+def test_legacy_sklearn_uses_defaults_only_initial_conda_create():
+    spec = generate_swebench_environment_spec(
+        make_request(
+            "scikit-learn__scikit-learn-13496",
+            "scikit-learn/scikit-learn",
+            "0.21",
+        )
+    )
+
+    assert "conda config --set solver libmamba" in spec["openshellDockerfile"]
+    assert (
+        "conda env create --override-channels -c defaults -f /root/environment.yml"
+    ) in spec["setupEnvScript"]
+
+    uncached_spec = generate_swebench_environment_spec(
+        make_request(
+            "scikit-learn__scikit-learn-999999",
+            "scikit-learn/scikit-learn",
+            "0.21",
+        )
+    )
+    assert (
+        "conda create --override-channels -c defaults -n testbed python=3.6 "
+        "numpy scipy cython pytest pandas matplotlib -y"
+    ) in uncached_spec["setupEnvScript"]
+
+
 def test_setup_repo_falls_back_when_version_ref_is_missing():
     spec = generate_swebench_environment_spec(
         make_request("sympy__sympy-13091", "sympy/sympy", "1.7")

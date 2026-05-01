@@ -20,6 +20,7 @@ SPECS_SKLEARN = {
     k: {
         "python": "3.6",
         "packages": "numpy scipy cython pytest pandas matplotlib",
+        "conda_create_flags": "--override-channels -c defaults",
         "install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e .",
         "pip_packages": [
             "cython",

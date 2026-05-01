@@ -321,10 +321,14 @@ def make_env_script_list_py_from_conda(
     instance, specs, env_name, cached_environment_yml
 ) -> list:
     HEREDOC_DELIMITER = "EOF_59812759871"
+    conda_create_flags = specs.get("conda_create_flags", "")
+    conda_env_create = "conda env create"
+    if conda_create_flags:
+        conda_env_create = f"{conda_env_create} {conda_create_flags}"
     reqs_commands = [
         "source /opt/miniconda3/bin/activate",
         f"cat <<'{HEREDOC_DELIMITER}' > /root/environment.yml\n{cached_environment_yml}\n{HEREDOC_DELIMITER}",
-        "conda env create -f /root/environment.yml",
+        f"{conda_env_create} -f /root/environment.yml",
         f"conda activate {env_name}",
     ]
     return reqs_commands
@@ -389,7 +393,11 @@ def make_env_script_list_py(instance, specs, env_name) -> list:
         reqs_commands.append(f"rm {path_to_reqs}")
     else:
         # Create environment + install dependencies
-        cmd = f"conda create -n {env_name} python={specs['python']} {pkgs} -y"
+        conda_create_flags = specs.get("conda_create_flags", "")
+        create_args = f"-n {env_name} python={specs['python']} {pkgs}"
+        if conda_create_flags:
+            create_args = f"{conda_create_flags} {create_args}"
+        cmd = f"conda create {create_args} -y"
         reqs_commands.append(cmd)
 
     reqs_commands.append(f"conda activate {env_name}")
