@@ -1,6 +1,4 @@
 import json
-
-from swebench.harness.constants import DOCKER_WORKDIR
 from swebench.harness.environment_spec import (
     BUILD_STRATEGY,
     generate_swebench_environment_spec,
@@ -45,7 +43,7 @@ def test_generates_harness_specs_for_representative_python_repos():
         )
 
         assert spec["buildStrategy"] == BUILD_STRATEGY
-        assert spec["workspaceRoot"] == DOCKER_WORKDIR == "/testbed"
+        assert spec["workspaceRoot"] == "/sandbox/repo"
         assert spec["condaEnvironment"] == "testbed"
         assert spec["language"] == "py"
         assert spec["platform"] == "linux/x86_64"

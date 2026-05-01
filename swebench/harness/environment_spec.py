@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from swebench.harness.constants import (
-    DOCKER_WORKDIR,
     KEY_INSTANCE_ID,
     MAP_REPO_VERSION_TO_SPECS,
     SWEbenchInstance,
@@ -20,6 +19,7 @@ from swebench.harness.test_spec.test_spec import TestSpec, make_test_spec
 
 BUILD_STRATEGY = "swebench-harness"
 CONDA_ENV_NAME = "testbed"
+OPENSHELL_WORKSPACE_ROOT = "/sandbox/repo"
 DEFAULT_OPENSHELL_BASE_IMAGE = (
     "ghcr.io/pittampalliorg/openshell-sandbox"
     "@sha256:dae398c014aeb4553844c79922d5c76c99dde04d0a6a7a9db5dd5307584a9a3b"
@@ -169,7 +169,7 @@ def generate_swebench_environment_spec(
         "language": test_spec.language,
         "platform": test_spec.platform,
         "pythonVersion": specs.get("python"),
-        "workspaceRoot": DOCKER_WORKDIR,
+        "workspaceRoot": OPENSHELL_WORKSPACE_ROOT,
         "condaEnvironment": CONDA_ENV_NAME,
         "scriptHashes": script_hashes,
         "dockerfileHashes": dockerfile_hashes,
