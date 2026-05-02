@@ -54,7 +54,11 @@ class SwebenchEnvironmentSpecRequest:
         repo = _required_string(payload, "repo")
         version = _metadata_string(payload, test_metadata, "version")
         base_commit = _required_string(payload, "base_commit", "baseCommit")
-        test_patch = _metadata_string(
+        # test_patch is a unified diff body — must NOT be trimmed.
+        # Trailing ` \n` is the unidiff "empty source line" context marker
+        # counted by the hunk header; stripping it breaks
+        # `unidiff.PatchSet(...)` inside `make_eval_script_list_py`.
+        test_patch = _metadata_raw_string(
             payload, test_metadata, "test_patch", "testPatch"
         )
         return cls(
@@ -355,6 +359,22 @@ def _optional_string(payload: Mapping[str, Any], *keys: str) -> str | None:
     return None
 
 
+def _optional_raw_string(payload: Mapping[str, Any], *keys: str) -> str | None:
+    """Same as `_optional_string` but preserves the literal value verbatim.
+
+    Used for fields where trailing whitespace is semantically significant —
+    most importantly `test_patch`, where a trailing ` \\n` is the unidiff
+    "empty source line" context marker counted by the hunk header. Stripping
+    desyncs the hunk count and breaks `unidiff.PatchSet(...)` inside
+    `make_eval_script_list_py`.
+    """
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def _metadata_string(
     payload: Mapping[str, Any],
     metadata: Mapping[str, Any] | None,
@@ -365,6 +385,22 @@ def _metadata_string(
         return value
     if metadata:
         value = _optional_string(metadata, *keys)
+        if value:
+            return value
+    raise ValueError(f"Missing required SWE-bench metadata field: {'/'.join(keys)}")
+
+
+def _metadata_raw_string(
+    payload: Mapping[str, Any],
+    metadata: Mapping[str, Any] | None,
+    *keys: str,
+) -> str:
+    """Whitespace-preserving variant of `_metadata_string` for diff bodies."""
+    value = _optional_raw_string(payload, *keys)
+    if value:
+        return value
+    if metadata:
+        value = _optional_raw_string(metadata, *keys)
         if value:
             return value
     raise ValueError(f"Missing required SWE-bench metadata field: {'/'.join(keys)}")
