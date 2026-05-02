@@ -620,14 +620,25 @@ for k in ["4.1", "4.2", "4.3", "5.0", "5.1", "5.2", "v5.3"]:
 # `ModuleNotFoundError: No module named 'pkg_resources'`.
 #
 # --no-build-isolation requires every build-time import to be present in
-# the testbed env. astropy/modeling/setup_package.py:109 imports jinja2,
-# so jinja2 must be in pip_packages alongside the test deps.
+# the testbed env. astropy 3.x's setup.py / setup_package.py have several
+# implicit build-time deps that pip would normally fetch into a fresh
+# build-isolation env from setup_requires; we need to pin them in
+# pip_packages instead. Discovered iteratively from build failures:
+#   - jinja2: astropy/modeling/setup_package.py:109 (Environment, FileSystemLoader)
+#   - Cython 0.29.x: needed to compile .pyx → .c (astropy/table/_np_utils.pyx, etc.).
+#     Pinned to 0.29.36 — last 0.29.x release; Cython 3.x is incompatible
+#     with astropy 3.x's macros.
+#   - extension_helpers: astropy_helpers replacement for ext-builder logic.
+#   - setuptools_scm: needed if the git checkout doesn't have a tagged version.
 for k in ["3.0", "3.1", "3.2"]:
     SPECS_ASTROPY[k]["install"] = (
         "python -m pip install --no-build-isolation -e .[test] --verbose"
     )
     SPECS_ASTROPY[k]["pip_packages"] = SPECS_ASTROPY[k]["pip_packages"] + [
         "jinja2==3.1.4",
+        "Cython==0.29.36",
+        "extension_helpers==1.1.1",
+        "setuptools_scm==7.1.0",
     ]
 for k in ["v5.3"]:
     SPECS_ASTROPY[k]["python"] = "3.10"
