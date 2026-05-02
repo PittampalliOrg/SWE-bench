@@ -610,6 +610,18 @@ for k in ["4.1", "4.2", "4.3", "5.0", "5.1", "5.2", "v5.3"]:
     SPECS_ASTROPY[k]["pre_install"] = [
         'sed -i \'s/requires = \\["setuptools",/requires = \\["setuptools==68.0.0",/\' pyproject.toml'
     ]
+# Astropy 3.x predates pyproject.toml's [build-system] requires convention,
+# so we can't pin setuptools by editing it. Instead, use --no-build-isolation
+# on the install so pip reuses the testbed env's already-pinned setuptools
+# 68.0.0 (in pip_packages) rather than fetching the latest into a temporary
+# build env. setuptools >=81 removes pkg_resources, which astropy 3.x's
+# ah_bootstrap.py imports — without this fix, `pip install -e .[test]`
+# fails at "Getting requirements to build editable" with
+# `ModuleNotFoundError: No module named 'pkg_resources'`.
+for k in ["3.0", "3.1", "3.2"]:
+    SPECS_ASTROPY[k]["install"] = (
+        "python -m pip install --no-build-isolation -e .[test] --verbose"
+    )
 for k in ["v5.3"]:
     SPECS_ASTROPY[k]["python"] = "3.10"
 
