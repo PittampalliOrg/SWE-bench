@@ -618,10 +618,17 @@ for k in ["4.1", "4.2", "4.3", "5.0", "5.1", "5.2", "v5.3"]:
 # ah_bootstrap.py imports — without this fix, `pip install -e .[test]`
 # fails at "Getting requirements to build editable" with
 # `ModuleNotFoundError: No module named 'pkg_resources'`.
+#
+# --no-build-isolation requires every build-time import to be present in
+# the testbed env. astropy/modeling/setup_package.py:109 imports jinja2,
+# so jinja2 must be in pip_packages alongside the test deps.
 for k in ["3.0", "3.1", "3.2"]:
     SPECS_ASTROPY[k]["install"] = (
         "python -m pip install --no-build-isolation -e .[test] --verbose"
     )
+    SPECS_ASTROPY[k]["pip_packages"] = SPECS_ASTROPY[k]["pip_packages"] + [
+        "jinja2==3.1.4",
+    ]
 for k in ["v5.3"]:
     SPECS_ASTROPY[k]["python"] = "3.10"
 
