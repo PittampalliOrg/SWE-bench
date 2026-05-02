@@ -275,9 +275,18 @@ def make_openshell_dockerfile(
             "      chown sandbox:sandbox \"$sandbox_home\" \"$sandbox_home/.bashrc\"; \\",
             "      chown -R sandbox:sandbox /sandbox/.venv; \\",
             "    fi \\",
-            " && rm -rf /testbed \\",
-            " && mkdir -p /sandbox/repo \\",
-            " && chown -R sandbox:sandbox /sandbox",
+            # Keep /testbed populated at environment_setup_commit so the
+            # K8s-native eval path (run-instance TaskRun in stacks) can
+            # `cd /testbed && git checkout <base_commit> && git apply <patch>`
+            # against the exact filesystem state SWE-bench's `eval.sh` expects.
+            # Inference still uses /sandbox/repo (the agent clones at session
+            # spawn). Symlink /sandbox/repo -> /testbed so the conda env's
+            # egg-link/.pth path rewrites (which point at /sandbox/repo) keep
+            # resolving until the agent's session-spawn replaces the symlink
+            # with its own clone — that replacement only happens inside the
+            # inference pod, not the eval pod, so /testbed stays clean for eval.
+            " && ln -sfn /testbed /sandbox/repo \\",
+            " && chown -R sandbox:sandbox /sandbox /testbed",
             "",
             "ENV HOME=/sandbox",
             "ENV PWD=/sandbox",
