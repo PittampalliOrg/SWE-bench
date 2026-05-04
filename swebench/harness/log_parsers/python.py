@@ -74,6 +74,7 @@ def parse_log_django(log: str, test_spec: TestSpec) -> dict[str, str]:
     lines = log.split("\n")
 
     prev_test = None
+    pending_test = None
     for line in lines:
         line = line.strip()
 
@@ -83,11 +84,8 @@ def parse_log_django(log: str, test_spec: TestSpec) -> dict[str, str]:
                 TestStatus.PASSED.value
             )
 
-        # Log it in case of error
-        if " ... " in line:
-            prev_test = line.split(" ... ")[0]
-
         pass_suffixes = (" ... ok", " ... OK", " ...  OK")
+        line_status = None
         for suffix in pass_suffixes:
             if line.endswith(suffix):
                 # TODO: Temporary, exclusive fix for django__django-7188
@@ -99,22 +97,39 @@ def parse_log_django(log: str, test_spec: TestSpec) -> dict[str, str]:
                     line = line.split("...", 1)[-1].strip()
                 test = line.rsplit(suffix, 1)[0]
                 test_status_map[test] = TestStatus.PASSED.value
+                line_status = TestStatus.PASSED.value
                 break
         if " ... skipped" in line:
             test = line.split(" ... skipped")[0]
             test_status_map[test] = TestStatus.SKIPPED.value
+            line_status = TestStatus.SKIPPED.value
         if line.endswith(" ... FAIL"):
             test = line.split(" ... FAIL")[0]
             test_status_map[test] = TestStatus.FAILED.value
+            line_status = TestStatus.FAILED.value
         if line.startswith("FAIL:"):
             test = line.split()[1].strip()
             test_status_map[test] = TestStatus.FAILED.value
+            line_status = TestStatus.FAILED.value
         if line.endswith(" ... ERROR"):
             test = line.split(" ... ERROR")[0]
             test_status_map[test] = TestStatus.ERROR.value
+            line_status = TestStatus.ERROR.value
         if line.startswith("ERROR:"):
             test = line.split()[1].strip()
             test_status_map[test] = TestStatus.ERROR.value
+            line_status = TestStatus.ERROR.value
+
+        if line_status is not None:
+            if pending_test:
+                test_status_map[pending_test] = line_status
+                pending_test = None
+        elif re.match(r"^[A-Za-z_]\w* .*?\([^()]+\)$", line):
+            pending_test = line
+
+        # Log it in case of error
+        if " ... " in line:
+            prev_test = line.split(" ... ")[0]
 
         if line.lstrip().startswith("ok") and prev_test is not None:
             # It means the test passed, but there's some additional output (including new lines)
